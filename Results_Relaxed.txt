@@ -1,0 +1,918 @@
+Linear part:
+dh(x,pk(y)) = dh(y,pk(x))
+Completing equations...
+Completed equations:
+dh(x,pk(y)) = dh(y,pk(x))
+Convergent part: No equation.
+Process 0 (that is, the initial process):
+{1}new sk_ta: bitstring;
+{2}new sk_ed: bitstring;
+{3}new sk_js: bitstring;
+{4}new d_eui: bitstring;
+{5}new j_eui: bitstring;
+{6}out(pub, pk(sk_ta));
+{7}out(pub, j_eui);
+{8}out(pub, d_eui);
+{9}out(pub, sk_ta);
+{10}let js_rr: bitstring = ds(sk_ta,tlsa(j_eui,pk(sk_js))) in
+(
+    {11}!
+    {12}let sk_ta_1: bitstring = sk_ta in
+    {13}let d_eui_1: bitstring = d_eui in
+    {14}let pk_ed: bitstring = pk(sk_ed) in
+    {15}in(dns, (tag: bitstring,name: bitstring));
+    {16}if (tag = tagED) then
+    {17}out(dns, ds(sk_ta_1,tlsa(d_eui_1,pk_ed)))
+) | (
+    {18}!
+    {19}let sk_ed_1: bitstring = sk_ed in
+    {20}let d_eui_2: bitstring = d_eui in
+    {21}let j_eui_1: bitstring = j_eui in
+    {22}let pk_ta: bitstring = pk(sk_ta) in
+    {23}new n: bitstring;
+    {24}let body: bitstring = jreq(j_eui_1,d_eui_2,n) in
+    {25}let sigma: bitstring = sign(sk_ed_1,body) in
+    {26}event ev_ed_start(d_eui_2,n);
+    {27}out(pub, (j_eui_1,d_eui_2,n,sigma));
+    {28}in(pub, (encJA: bitstring,js_rr_1: bitstring));
+    {29}let tlsa(nm_js: bitstring,pk_js_recv: bitstring) = vds(js_rr_1,pk_ta) in
+    {30}if (nm_js = j_eui_1) then
+    {31}event ev_ed_auth_js(pk_js_recv,j_eui_1);
+    {32}let appkey: bitstring = first16(dh(sk_ed_1,pk_js_recv)) in
+    {33}let joinnonce: bitstring = aes_dec(appkey,encJA) in
+    {34}let nwkskey: bitstring = sessionkey(appkey,joinnonce) in
+    {35}event ev_ed_key(appkey,pk(sk_ed_1),pk_js_recv);
+    {36}out(pub, aes_enc(appkey,s_appkey));
+    {37}out(pub, aes_enc(nwkskey,s_nwkskey))
+) | (
+    {38}!
+    {39}let d_eui_3: bitstring = d_eui in
+    {40}in(pub, (j: bitstring,d: bitstring,n_1: bitstring,sg: bitstring));
+    {41}if (d = d_eui_3) then
+    {42}out(nsjs, (j,d,n_1,sg));
+    {43}in(nsjs, (encJA_1: bitstring,js_rr_2: bitstring,nwks: bitstring));
+    {44}out(pub, (encJA_1,js_rr_2))
+) | (
+    {45}!
+    {46}let sk_js_1: bitstring = sk_js in
+    {47}let j_eui_2: bitstring = j_eui in
+    {48}let pk_ta_1: bitstring = pk(sk_ta) in
+    {49}in(nsjs, (j_1: bitstring,d_1: bitstring,n_2: bitstring,sg_1: bitstring));
+    {50}out(dns, (tagED,d_1));
+    {51}in(dns, ed_rr: bitstring);
+    {52}let tlsa(nm_ed: bitstring,pk_ed_1: bitstring) = vds(ed_rr,pk_ta_1) in
+    {53}if (nm_ed = d_1) then
+    {54}let jreq(=j_1,=d_1,=n_2) = checksign(sg_1,pk_ed_1) in
+    {55}event ev_js_auth_ed(pk_ed_1,d_1,n_2);
+    {56}let appkey_1: bitstring = first16(dh(sk_js_1,pk_ed_1)) in
+    {57}event ev_js_key(appkey_1,pk_ed_1,pk(sk_js_1));
+    {58}new joinnonce_1: bitstring;
+    {59}let encJA_2: bitstring = aes_enc(appkey_1,joinnonce_1) in
+    {60}let nwkskey_1: bitstring = sessionkey(appkey_1,joinnonce_1) in
+    {61}event ev_js_active(pk(sk_js_1));
+    {62}out(nsjs, (encJA_2,js_rr,nwkskey_1))
+)
+
+--  Process 1 (that is, process 0, with let moved downwards):
+{1}new sk_ta: bitstring;
+{2}new sk_ed: bitstring;
+{3}new sk_js: bitstring;
+{4}new d_eui: bitstring;
+{5}new j_eui: bitstring;
+{6}out(pub, pk(sk_ta));
+{7}out(pub, j_eui);
+{8}out(pub, d_eui);
+{9}out(pub, sk_ta);
+(
+    {11}!
+    {15}in(dns, (tag: bitstring,name: bitstring));
+    {16}if (tag = tagED) then
+    {14}let pk_ed: bitstring = pk(sk_ed) in
+    {13}let d_eui_1: bitstring = d_eui in
+    {12}let sk_ta_1: bitstring = sk_ta in
+    {17}out(dns, ds(sk_ta_1,tlsa(d_eui_1,pk_ed)))
+) | (
+    {18}!
+    {23}new n: bitstring;
+    {20}let d_eui_2: bitstring = d_eui in
+    {26}event ev_ed_start(d_eui_2,n);
+    {21}let j_eui_1: bitstring = j_eui in
+    {24}let body: bitstring = jreq(j_eui_1,d_eui_2,n) in
+    {19}let sk_ed_1: bitstring = sk_ed in
+    {25}let sigma: bitstring = sign(sk_ed_1,body) in
+    {27}out(pub, (j_eui_1,d_eui_2,n,sigma));
+    {28}in(pub, (encJA: bitstring,js_rr_1: bitstring));
+    {22}let pk_ta: bitstring = pk(sk_ta) in
+    {29}let tlsa(nm_js: bitstring,pk_js_recv: bitstring) = vds(js_rr_1,pk_ta) in
+    {30}if (nm_js = j_eui_1) then
+    {31}event ev_ed_auth_js(pk_js_recv,j_eui_1);
+    {32}let appkey: bitstring = first16(dh(sk_ed_1,pk_js_recv)) in
+    {33}let joinnonce: bitstring = aes_dec(appkey,encJA) in
+    {35}event ev_ed_key(appkey,pk(sk_ed_1),pk_js_recv);
+    {36}out(pub, aes_enc(appkey,s_appkey));
+    {34}let nwkskey: bitstring = sessionkey(appkey,joinnonce) in
+    {37}out(pub, aes_enc(nwkskey,s_nwkskey))
+) | (
+    {38}!
+    {40}in(pub, (j: bitstring,d: bitstring,n_1: bitstring,sg: bitstring));
+    {39}let d_eui_3: bitstring = d_eui in
+    {41}if (d = d_eui_3) then
+    {42}out(nsjs, (j,d,n_1,sg));
+    {43}in(nsjs, (encJA_1: bitstring,js_rr_2: bitstring,nwks: bitstring));
+    {44}out(pub, (encJA_1,js_rr_2))
+) | (
+    {45}!
+    {49}in(nsjs, (j_1: bitstring,d_1: bitstring,n_2: bitstring,sg_1: bitstring));
+    {50}out(dns, (tagED,d_1));
+    {51}in(dns, ed_rr: bitstring);
+    {48}let pk_ta_1: bitstring = pk(sk_ta) in
+    {52}let tlsa(nm_ed: bitstring,pk_ed_1: bitstring) = vds(ed_rr,pk_ta_1) in
+    {53}if (nm_ed = d_1) then
+    {54}let jreq(=j_1,=d_1,=n_2) = checksign(sg_1,pk_ed_1) in
+    {55}event ev_js_auth_ed(pk_ed_1,d_1,n_2);
+    {46}let sk_js_1: bitstring = sk_js in
+    {56}let appkey_1: bitstring = first16(dh(sk_js_1,pk_ed_1)) in
+    {57}event ev_js_key(appkey_1,pk_ed_1,pk(sk_js_1));
+    {58}new joinnonce_1: bitstring;
+    {61}event ev_js_active(pk(sk_js_1));
+    {60}let nwkskey_1: bitstring = sessionkey(appkey_1,joinnonce_1) in
+    {59}let encJA_2: bitstring = aes_enc(appkey_1,joinnonce_1) in
+    {10}let js_rr: bitstring = ds(sk_ta,tlsa(j_eui,pk(sk_js))) in
+    {62}out(nsjs, (encJA_2,js_rr,nwkskey_1))
+)
+
+Declared: select attacker(aes_enc(first16(*v),*jn))/-6000 [ignoreAFewTimes,hypothesis]
+-- Query not attacker(s_appkey[]) in process 1.
+Translating the process into Horn clauses...
+Completing...
+Termination warning: Selecting an hypothesis matching the conclusion.
+In case of non-termination, try a noselect declaration implying the following one:
+   noselect y:bitstring, nm_ed_1:bitstring; attacker(ds(sk_ta[],tlsa(nm_ed_1,pk(y)))).
+Starting query not attacker(s_appkey[])
+goal reachable: attacker(s_appkey[])
+
+Derivation:
+
+1. The attacker has some term x.
+attacker(x).
+
+2. By 1, the attacker may know x.
+Using the function pk the attacker may obtain pk(x).
+attacker(pk(x)).
+
+3. The message j_eui[] may be sent to the attacker at output {7}.
+attacker(j_eui[]).
+
+4. By 3, the attacker may know j_eui[].
+By 2, the attacker may know pk(x).
+Using the function tlsa the attacker may obtain tlsa(j_eui[],pk(x)).
+attacker(tlsa(j_eui[],pk(x))).
+
+5. The message sk_ta[] may be sent to the attacker at output {9}.
+attacker(sk_ta[]).
+
+6. By 5, the attacker may know sk_ta[].
+By 4, the attacker may know tlsa(j_eui[],pk(x)).
+Using the function ds the attacker may obtain ds(sk_ta[],tlsa(j_eui[],pk(x))).
+attacker(ds(sk_ta[],tlsa(j_eui[],pk(x)))).
+
+7. The attacker has some term joinnonce_2.
+attacker(joinnonce_2).
+
+8. The message pk(sk_ta[]) may be sent to the attacker at output {6}.
+attacker(pk(sk_ta[])).
+
+9. The attacker has some term name_1.
+attacker(name_1).
+
+10. The attacker initially knows tagED[].
+attacker(tagED[]).
+
+11. By 10, the attacker may know tagED[].
+By 9, the attacker may know name_1.
+Using the function 2-tuple the attacker may obtain (tagED[],name_1).
+attacker((tagED[],name_1)).
+
+12. The message (tagED[],name_1) that the attacker may have by 11 may be received at input {15}.
+So the message ds(sk_ta[],tlsa(d_eui[],pk(sk_ed[]))) may be sent to the attacker at output {17}.
+attacker(ds(sk_ta[],tlsa(d_eui[],pk(sk_ed[])))).
+
+13. By 12, the attacker may know ds(sk_ta[],tlsa(d_eui[],pk(sk_ed[]))).
+By 8, the attacker may know pk(sk_ta[]).
+Using the function vds the attacker may obtain tlsa(d_eui[],pk(sk_ed[])).
+attacker(tlsa(d_eui[],pk(sk_ed[]))).
+
+14. By 13, the attacker may know tlsa(d_eui[],pk(sk_ed[])).
+Using the function 2-proj-tlsa the attacker may obtain pk(sk_ed[]).
+attacker(pk(sk_ed[])).
+
+15. By 1, the attacker may know x.
+By 14, the attacker may know pk(sk_ed[]).
+Using the function dh the attacker may obtain dh(sk_ed[],pk(x)).
+attacker(dh(sk_ed[],pk(x))).
+
+16. By 15, the attacker may know dh(sk_ed[],pk(x)).
+Using the function first16 the attacker may obtain first16(dh(sk_ed[],pk(x))).
+attacker(first16(dh(sk_ed[],pk(x)))).
+
+17. By 16, the attacker may know first16(dh(sk_ed[],pk(x))).
+By 7, the attacker may know joinnonce_2.
+Using the function aes_enc the attacker may obtain aes_enc(first16(dh(sk_ed[],pk(x))),joinnonce_2).
+attacker(aes_enc(first16(dh(sk_ed[],pk(x))),joinnonce_2)).
+
+18. By 17, the attacker may know aes_enc(first16(dh(sk_ed[],pk(x))),joinnonce_2).
+By 6, the attacker may know ds(sk_ta[],tlsa(j_eui[],pk(x))).
+Using the function 2-tuple the attacker may obtain (aes_enc(first16(dh(sk_ed[],pk(x))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(x)))).
+attacker((aes_enc(first16(dh(sk_ed[],pk(x))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(x))))).
+
+19. The message (aes_enc(first16(dh(sk_ed[],pk(x))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(x)))) that the attacker may have by 18 may be received at input {28}.
+So the message aes_enc(first16(dh(sk_ed[],pk(x))),s_appkey[]) may be sent to the attacker at output {36}.
+attacker(aes_enc(first16(dh(sk_ed[],pk(x))),s_appkey[])).
+
+20. By 16, the attacker may know first16(dh(sk_ed[],pk(x))).
+By 19, the attacker may know aes_enc(first16(dh(sk_ed[],pk(x))),s_appkey[]).
+Using the function aes_dec the attacker may obtain s_appkey[].
+attacker(s_appkey[]).
+
+21. By 20, attacker(s_appkey[]).
+The goal is reached, represented in the following fact:
+attacker(s_appkey[]).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+new sk_ta: bitstring creating sk_ta_2 at {1}
+
+new sk_ed: bitstring creating sk_ed_2 at {2}
+
+new sk_js: bitstring creating sk_js_2 at {3}
+
+new d_eui: bitstring creating d_eui_4 at {4}
+
+new j_eui: bitstring creating j_eui_3 at {5}
+
+out(pub, ~M) with ~M = pk(sk_ta_2) at {6}
+
+out(pub, ~M_1) with ~M_1 = j_eui_3 at {7}
+
+out(pub, ~M_2) with ~M_2 = d_eui_4 at {8}
+
+out(pub, ~M_3) with ~M_3 = sk_ta_2 at {9}
+
+new n: bitstring creating n_3 at {23} in copy a
+
+event ev_ed_start(d_eui_4,n_3) at {26} in copy a
+
+out(pub, (~M_4,~M_5,~M_6,~M_7)) with ~M_4 = j_eui_3, ~M_5 = d_eui_4, ~M_6 = n_3, ~M_7 = sign(sk_ed_2,jreq(j_eui_3,d_eui_4,n_3)) at {27} in copy a
+
+in(dns, (tagED,a_1)) at {15} in copy a_2
+
+out(dns, ~M_8) with ~M_8 = ds(sk_ta_2,tlsa(d_eui_4,pk(sk_ed_2))) at {17} in copy a_2
+
+in(pub, (aes_enc(first16(dh(a_3,2-proj-tlsa(vds(~M_8,~M)))),a_4),ds(~M_3,tlsa(~M_1,pk(a_3))))) with aes_enc(first16(dh(a_3,2-proj-tlsa(vds(~M_8,~M)))),a_4) = aes_enc(first16(dh(sk_ed_2,pk(a_3))),a_4), ds(~M_3,tlsa(~M_1,pk(a_3))) = ds(sk_ta_2,tlsa(j_eui_3,pk(a_3))) at {28} in copy a
+
+event ev_ed_auth_js(pk(a_3),j_eui_3) at {31} in copy a
+
+event ev_ed_key(first16(dh(sk_ed_2,pk(a_3))),pk(sk_ed_2),pk(a_3)) at {35} in copy a
+
+out(pub, ~M_9) with ~M_9 = aes_enc(first16(dh(sk_ed_2,pk(a_3))),s_appkey) at {36} in copy a
+
+out(pub, ~M_10) with ~M_10 = aes_enc(sessionkey(first16(dh(sk_ed_2,pk(a_3))),a_4),s_nwkskey) at {37} in copy a
+
+The attacker has the message aes_dec(first16(dh(a_3,2-proj-tlsa(vds(~M_8,~M)))),~M_9) = s_appkey.
+A trace has been found.
+RESULT not attacker(s_appkey[]) is false.
+Declared: select attacker(aes_enc(first16(*v),*jn))/-6000 [ignoreAFewTimes,hypothesis]
+-- Query not attacker(s_nwkskey[]) in process 1.
+Translating the process into Horn clauses...
+Completing...
+Termination warning: Selecting an hypothesis matching the conclusion.
+In case of non-termination, try a noselect declaration implying the following one:
+   noselect y:bitstring, nm_ed_1:bitstring; attacker(ds(sk_ta[],tlsa(nm_ed_1,pk(y)))).
+Starting query not attacker(s_nwkskey[])
+goal reachable: attacker(s_nwkskey[])
+
+Derivation:
+Abbreviations:
+n_3 = n[!1 = @sid]
+joinnonce_2 = joinnonce_1[ed_rr = ds(sk_ta[],tlsa(d_eui[],pk(sk_ed[]))),sg_1 = sign(sk_ed[],jreq(j_eui[],d_eui[],n_3)),n_2 = n_3,d_1 = d_eui[],j_1 = j_eui[],!1 = @sid_1]
+joinnonce_3 = joinnonce_1[ed_rr = ds(sk_ta[],tlsa(nm_ed_1,pk(y))),sg_1 = sign(y,jreq(j_2,nm_ed_1,n_4)),n_2 = n_4,d_1 = nm_ed_1,j_1 = j_2,!1 = @sid_2]
+
+1. The attacker has some term n_4.
+attacker(n_4).
+
+2. The attacker has some term nm_ed_1.
+attacker(nm_ed_1).
+
+3. The attacker has some term j_2.
+attacker(j_2).
+
+4. By 3, the attacker may know j_2.
+By 2, the attacker may know nm_ed_1.
+By 1, the attacker may know n_4.
+Using the function jreq the attacker may obtain jreq(j_2,nm_ed_1,n_4).
+attacker(jreq(j_2,nm_ed_1,n_4)).
+
+5. The attacker has some term y.
+attacker(y).
+
+6. By 5, the attacker may know y.
+By 4, the attacker may know jreq(j_2,nm_ed_1,n_4).
+Using the function sign the attacker may obtain sign(y,jreq(j_2,nm_ed_1,n_4)).
+attacker(sign(y,jreq(j_2,nm_ed_1,n_4))).
+
+7. By 3, the attacker may know j_2.
+By 2, the attacker may know nm_ed_1.
+By 1, the attacker may know n_4.
+By 6, the attacker may know sign(y,jreq(j_2,nm_ed_1,n_4)).
+Using the function 4-tuple the attacker may obtain (j_2,nm_ed_1,n_4,sign(y,jreq(j_2,nm_ed_1,n_4))).
+attacker((j_2,nm_ed_1,n_4,sign(y,jreq(j_2,nm_ed_1,n_4)))).
+
+8. By 5, the attacker may know y.
+Using the function pk the attacker may obtain pk(y).
+attacker(pk(y)).
+
+9. By 2, the attacker may know nm_ed_1.
+By 8, the attacker may know pk(y).
+Using the function tlsa the attacker may obtain tlsa(nm_ed_1,pk(y)).
+attacker(tlsa(nm_ed_1,pk(y))).
+
+10. The message sk_ta[] may be sent to the attacker at output {9}.
+attacker(sk_ta[]).
+
+11. By 10, the attacker may know sk_ta[].
+By 9, the attacker may know tlsa(nm_ed_1,pk(y)).
+Using the function ds the attacker may obtain ds(sk_ta[],tlsa(nm_ed_1,pk(y))).
+attacker(ds(sk_ta[],tlsa(nm_ed_1,pk(y)))).
+
+12. The message (j_2,nm_ed_1,n_4,sign(y,jreq(j_2,nm_ed_1,n_4))) that the attacker may have by 7 may be received at input {49}.
+The message ds(sk_ta[],tlsa(nm_ed_1,pk(y))) that the attacker may have by 11 may be received at input {51}.
+So the message (aes_enc(first16(dh(y,pk(sk_js[]))),joinnonce_3),ds(sk_ta[],tlsa(j_eui[],pk(sk_js[]))),sessionkey(first16(dh(y,pk(sk_js[]))),joinnonce_3)) may be sent to the attacker at output {62}.
+attacker((aes_enc(first16(dh(y,pk(sk_js[]))),joinnonce_3),ds(sk_ta[],tlsa(j_eui[],pk(sk_js[]))),sessionkey(first16(dh(y,pk(sk_js[]))),joinnonce_3))).
+
+13. By 12, the attacker may know (aes_enc(first16(dh(y,pk(sk_js[]))),joinnonce_3),ds(sk_ta[],tlsa(j_eui[],pk(sk_js[]))),sessionkey(first16(dh(y,pk(sk_js[]))),joinnonce_3)).
+Using the function 2-proj-3-tuple the attacker may obtain ds(sk_ta[],tlsa(j_eui[],pk(sk_js[]))).
+attacker(ds(sk_ta[],tlsa(j_eui[],pk(sk_js[])))).
+
+14. The message (j_eui[],d_eui[],n_3,sign(sk_ed[],jreq(j_eui[],d_eui[],n_3))) may be sent to the attacker at output {27}.
+attacker((j_eui[],d_eui[],n_3,sign(sk_ed[],jreq(j_eui[],d_eui[],n_3)))).
+
+15. By 14, the attacker may know (j_eui[],d_eui[],n_3,sign(sk_ed[],jreq(j_eui[],d_eui[],n_3))).
+Using the function 4-proj-4-tuple the attacker may obtain sign(sk_ed[],jreq(j_eui[],d_eui[],n_3)).
+attacker(sign(sk_ed[],jreq(j_eui[],d_eui[],n_3))).
+
+16. By 14, the attacker may know (j_eui[],d_eui[],n_3,sign(sk_ed[],jreq(j_eui[],d_eui[],n_3))).
+Using the function 3-proj-4-tuple the attacker may obtain n_3.
+attacker(n_3).
+
+17. The message d_eui[] may be sent to the attacker at output {8}.
+attacker(d_eui[]).
+
+18. The message j_eui[] may be sent to the attacker at output {7}.
+attacker(j_eui[]).
+
+19. By 18, the attacker may know j_eui[].
+By 17, the attacker may know d_eui[].
+By 16, the attacker may know n_3.
+By 15, the attacker may know sign(sk_ed[],jreq(j_eui[],d_eui[],n_3)).
+Using the function 4-tuple the attacker may obtain (j_eui[],d_eui[],n_3,sign(sk_ed[],jreq(j_eui[],d_eui[],n_3))).
+attacker((j_eui[],d_eui[],n_3,sign(sk_ed[],jreq(j_eui[],d_eui[],n_3)))).
+
+20. The attacker has some term name_1.
+attacker(name_1).
+
+21. The attacker initially knows tagED[].
+attacker(tagED[]).
+
+22. By 21, the attacker may know tagED[].
+By 20, the attacker may know name_1.
+Using the function 2-tuple the attacker may obtain (tagED[],name_1).
+attacker((tagED[],name_1)).
+
+23. The message (tagED[],name_1) that the attacker may have by 22 may be received at input {15}.
+So the message ds(sk_ta[],tlsa(d_eui[],pk(sk_ed[]))) may be sent to the attacker at output {17}.
+attacker(ds(sk_ta[],tlsa(d_eui[],pk(sk_ed[])))).
+
+24. The message (j_eui[],d_eui[],n_3,sign(sk_ed[],jreq(j_eui[],d_eui[],n_3))) that the attacker may have by 19 may be received at input {49}.
+The message ds(sk_ta[],tlsa(d_eui[],pk(sk_ed[]))) that the attacker may have by 23 may be received at input {51}.
+So the message (aes_enc(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(sk_js[]))),sessionkey(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2)) may be sent to the attacker at output {62}.
+attacker((aes_enc(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(sk_js[]))),sessionkey(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2))).
+
+25. By 24, the attacker may know (aes_enc(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(sk_js[]))),sessionkey(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2)).
+Using the function 1-proj-3-tuple the attacker may obtain aes_enc(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2).
+attacker(aes_enc(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2)).
+
+26. By 25, the attacker may know aes_enc(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2).
+By 13, the attacker may know ds(sk_ta[],tlsa(j_eui[],pk(sk_js[]))).
+Using the function 2-tuple the attacker may obtain (aes_enc(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(sk_js[])))).
+attacker((aes_enc(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(sk_js[]))))).
+
+27. The message (aes_enc(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(sk_js[])))) that the attacker may have by 26 may be received at input {28}.
+So the message aes_enc(sessionkey(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2),s_nwkskey[]) may be sent to the attacker at output {37}.
+attacker(aes_enc(sessionkey(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2),s_nwkskey[])).
+
+28. By 24, the attacker may know (aes_enc(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(sk_js[]))),sessionkey(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2)).
+Using the function 3-proj-3-tuple the attacker may obtain sessionkey(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2).
+attacker(sessionkey(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2)).
+
+29. By 28, the attacker may know sessionkey(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2).
+By 27, the attacker may know aes_enc(sessionkey(first16(dh(sk_js[],pk(sk_ed[]))),joinnonce_2),s_nwkskey[]).
+Using the function aes_dec the attacker may obtain s_nwkskey[].
+attacker(s_nwkskey[]).
+
+30. By 29, attacker(s_nwkskey[]).
+The goal is reached, represented in the following fact:
+attacker(s_nwkskey[]).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+new sk_ta: bitstring creating sk_ta_2 at {1}
+
+new sk_ed: bitstring creating sk_ed_2 at {2}
+
+new sk_js: bitstring creating sk_js_2 at {3}
+
+new d_eui: bitstring creating d_eui_4 at {4}
+
+new j_eui: bitstring creating j_eui_3 at {5}
+
+out(pub, ~M) with ~M = pk(sk_ta_2) at {6}
+
+out(pub, ~M_1) with ~M_1 = j_eui_3 at {7}
+
+out(pub, ~M_2) with ~M_2 = d_eui_4 at {8}
+
+out(pub, ~M_3) with ~M_3 = sk_ta_2 at {9}
+
+new n: bitstring creating n_5 at {23} in copy a
+
+event ev_ed_start(d_eui_4,n_5) at {26} in copy a
+
+out(pub, (~M_4,~M_5,~M_6,~M_7)) with ~M_4 = j_eui_3, ~M_5 = d_eui_4, ~M_6 = n_5, ~M_7 = sign(sk_ed_2,jreq(j_eui_3,d_eui_4,n_5)) at {27} in copy a
+
+new n: bitstring creating n_6 at {23} in copy a_1
+
+event ev_ed_start(d_eui_4,n_6) at {26} in copy a_1
+
+out(pub, (~M_8,~M_9,~M_10,~M_11)) with ~M_8 = j_eui_3, ~M_9 = d_eui_4, ~M_10 = n_6, ~M_11 = sign(sk_ed_2,jreq(j_eui_3,d_eui_4,n_6)) at {27} in copy a_1
+
+in(dns, (tagED,a_2)) at {15} in copy a_3
+
+out(dns, ~M_12) with ~M_12 = ds(sk_ta_2,tlsa(d_eui_4,pk(sk_ed_2))) at {17} in copy a_3
+
+in(nsjs, (~M_1,~M_2,~M_10,~M_11)) with ~M_1 = j_eui_3, ~M_2 = d_eui_4, ~M_10 = n_6, ~M_11 = sign(sk_ed_2,jreq(j_eui_3,d_eui_4,n_6)) at {49} in copy a_4
+
+out(dns, (~M_13,~M_14)) with ~M_13 = tagED, ~M_14 = d_eui_4 at {50} in copy a_4
+
+in(dns, ~M_12) with ~M_12 = ds(sk_ta_2,tlsa(d_eui_4,pk(sk_ed_2))) at {51} in copy a_4
+
+event ev_js_auth_ed(pk(sk_ed_2),d_eui_4,n_6) at {55} in copy a_4
+
+event ev_js_key(first16(dh(sk_js_2,pk(sk_ed_2))),pk(sk_ed_2),pk(sk_js_2)) at {57} in copy a_4
+
+new joinnonce_1: bitstring creating joinnonce_4 at {58} in copy a_4
+
+event ev_js_active(pk(sk_js_2)) at {61} in copy a_4
+
+out(nsjs, (~M_15,~M_16,~M_17)) with ~M_15 = aes_enc(first16(dh(sk_js_2,pk(sk_ed_2))),joinnonce_4), ~M_16 = ds(sk_ta_2,tlsa(j_eui_3,pk(sk_js_2))), ~M_17 = sessionkey(first16(dh(sk_js_2,pk(sk_ed_2))),joinnonce_4) at {62} in copy a_4
+
+in(pub, (~M_15,~M_16)) with ~M_15 = aes_enc(first16(dh(sk_js_2,pk(sk_ed_2))),joinnonce_4), ~M_16 = ds(sk_ta_2,tlsa(j_eui_3,pk(sk_js_2))) at {28} in copy a
+
+event ev_ed_auth_js(pk(sk_js_2),j_eui_3) at {31} in copy a
+
+event ev_ed_key(first16(dh(sk_ed_2,pk(sk_js_2))),pk(sk_ed_2),pk(sk_js_2)) at {35} in copy a
+
+out(pub, ~M_18) with ~M_18 = aes_enc(first16(dh(sk_ed_2,pk(sk_js_2))),s_appkey) at {36} in copy a
+
+out(pub, ~M_19) with ~M_19 = aes_enc(sessionkey(first16(dh(sk_ed_2,pk(sk_js_2))),joinnonce_4),s_nwkskey) at {37} in copy a
+
+The attacker has the message aes_dec(~M_17,~M_19) = s_nwkskey.
+A trace has been found.
+RESULT not attacker(s_nwkskey[]) is false.
+Declared: select attacker(aes_enc(first16(*v),*jn))/-6000 [ignoreAFewTimes,hypothesis]
+-- Query event(ev_js_auth_ed(pkE,d_2,n_3)) ==> event(ev_ed_start(d_2,n_3)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+Termination warning: Selecting an hypothesis matching the conclusion.
+In case of non-termination, try a noselect declaration implying the following one:
+   noselect y:bitstring, nm_ed_1:bitstring; attacker(ds(sk_ta[],tlsa(nm_ed_1,pk(y)))).
+200 rules inserted. Base: 134 rules (62 with conclusion selected). Queue: 5 rules.
+Starting query event(ev_js_auth_ed(pkE,d_2,n_3)) ==> event(ev_ed_start(d_2,n_3))
+goal reachable: attacker(sk) && attacker(d_2) && attacker(n_3) -> event(ev_js_auth_ed(pk(sk),d_2,n_3))
+
+Derivation:
+
+1. We assume as hypothesis that
+attacker(n_3).
+
+2. We assume as hypothesis that
+attacker(d_2).
+
+3. The attacker has some term j_2.
+attacker(j_2).
+
+4. By 3, the attacker may know j_2.
+By 2, the attacker may know d_2.
+By 1, the attacker may know n_3.
+Using the function jreq the attacker may obtain jreq(j_2,d_2,n_3).
+attacker(jreq(j_2,d_2,n_3)).
+
+5. We assume as hypothesis that
+attacker(sk).
+
+6. By 5, the attacker may know sk.
+By 4, the attacker may know jreq(j_2,d_2,n_3).
+Using the function sign the attacker may obtain sign(sk,jreq(j_2,d_2,n_3)).
+attacker(sign(sk,jreq(j_2,d_2,n_3))).
+
+7. By 3, the attacker may know j_2.
+By 2, the attacker may know d_2.
+By 1, the attacker may know n_3.
+By 6, the attacker may know sign(sk,jreq(j_2,d_2,n_3)).
+Using the function 4-tuple the attacker may obtain (j_2,d_2,n_3,sign(sk,jreq(j_2,d_2,n_3))).
+attacker((j_2,d_2,n_3,sign(sk,jreq(j_2,d_2,n_3)))).
+
+8. By 5, the attacker may know sk.
+Using the function pk the attacker may obtain pk(sk).
+attacker(pk(sk)).
+
+9. By 2, the attacker may know d_2.
+By 8, the attacker may know pk(sk).
+Using the function tlsa the attacker may obtain tlsa(d_2,pk(sk)).
+attacker(tlsa(d_2,pk(sk))).
+
+10. The message sk_ta[] may be sent to the attacker at output {9}.
+attacker(sk_ta[]).
+
+11. By 10, the attacker may know sk_ta[].
+By 9, the attacker may know tlsa(d_2,pk(sk)).
+Using the function ds the attacker may obtain ds(sk_ta[],tlsa(d_2,pk(sk))).
+attacker(ds(sk_ta[],tlsa(d_2,pk(sk)))).
+
+12. The message (j_2,d_2,n_3,sign(sk,jreq(j_2,d_2,n_3))) that the attacker may have by 7 may be received at input {49}.
+The message ds(sk_ta[],tlsa(d_2,pk(sk))) that the attacker may have by 11 may be received at input {51}.
+So event ev_js_auth_ed(pk(sk),d_2,n_3) may be executed at {55}.
+event(ev_js_auth_ed(pk(sk),d_2,n_3)).
+
+13. By 12, event(ev_js_auth_ed(pk(sk),d_2,n_3)).
+The goal is reached, represented in the following fact:
+event(ev_js_auth_ed(pk(sk),d_2,n_3)).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+new sk_ta: bitstring creating sk_ta_2 at {1}
+
+new sk_ed: bitstring creating sk_ed_2 at {2}
+
+new sk_js: bitstring creating sk_js_2 at {3}
+
+new d_eui: bitstring creating d_eui_4 at {4}
+
+new j_eui: bitstring creating j_eui_3 at {5}
+
+out(pub, ~M) with ~M = pk(sk_ta_2) at {6}
+
+out(pub, ~M_1) with ~M_1 = j_eui_3 at {7}
+
+out(pub, ~M_2) with ~M_2 = d_eui_4 at {8}
+
+out(pub, ~M_3) with ~M_3 = sk_ta_2 at {9}
+
+in(nsjs, (a,a_1,a_2,sign(a_3,jreq(a,a_1,a_2)))) at {49} in copy a_4
+
+out(dns, (~M_4,~M_5)) with ~M_4 = tagED, ~M_5 = a_1 at {50} in copy a_4
+
+in(dns, ds(~M_3,tlsa(a_1,pk(a_3)))) with ds(~M_3,tlsa(a_1,pk(a_3))) = ds(sk_ta_2,tlsa(a_1,pk(a_3))) at {51} in copy a_4
+
+event ev_js_auth_ed(pk(a_3),a_1,a_2) at {55} in copy a_4 (goal)
+
+The event ev_js_auth_ed(pk(a_3),a_1,a_2) is executed at {55} in copy a_4.
+A trace has been found.
+RESULT event(ev_js_auth_ed(pkE,d_2,n_3)) ==> event(ev_ed_start(d_2,n_3)) is false.
+Declared: select attacker(aes_enc(first16(*v),*jn))/-6000 [ignoreAFewTimes,hypothesis]
+-- Query event(ev_ed_auth_js(pkJ,j_2)) ==> event(ev_js_active(pkJ)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+Termination warning: Selecting an hypothesis matching the conclusion.
+In case of non-termination, try a noselect declaration implying the following one:
+   noselect y:bitstring, nm_ed_1:bitstring; attacker(ds(sk_ta[],tlsa(nm_ed_1,pk(y)))).
+Starting query event(ev_ed_auth_js(pkJ,j_2)) ==> event(ev_js_active(pkJ))
+goal reachable: attacker(pkJ) -> event(ev_ed_auth_js(pkJ,j_eui[]))
+
+Derivation:
+
+1. We assume as hypothesis that
+attacker(pkJ).
+
+2. The message j_eui[] may be sent to the attacker at output {7}.
+attacker(j_eui[]).
+
+3. By 2, the attacker may know j_eui[].
+By 1, the attacker may know pkJ.
+Using the function tlsa the attacker may obtain tlsa(j_eui[],pkJ).
+attacker(tlsa(j_eui[],pkJ)).
+
+4. The message sk_ta[] may be sent to the attacker at output {9}.
+attacker(sk_ta[]).
+
+5. By 4, the attacker may know sk_ta[].
+By 3, the attacker may know tlsa(j_eui[],pkJ).
+Using the function ds the attacker may obtain ds(sk_ta[],tlsa(j_eui[],pkJ)).
+attacker(ds(sk_ta[],tlsa(j_eui[],pkJ))).
+
+6. The attacker has some term encJA_3.
+attacker(encJA_3).
+
+7. By 6, the attacker may know encJA_3.
+By 5, the attacker may know ds(sk_ta[],tlsa(j_eui[],pkJ)).
+Using the function 2-tuple the attacker may obtain (encJA_3,ds(sk_ta[],tlsa(j_eui[],pkJ))).
+attacker((encJA_3,ds(sk_ta[],tlsa(j_eui[],pkJ)))).
+
+8. The message (encJA_3,ds(sk_ta[],tlsa(j_eui[],pkJ))) that the attacker may have by 7 may be received at input {28}.
+So event ev_ed_auth_js(pkJ,j_eui[]) may be executed at {31}.
+event(ev_ed_auth_js(pkJ,j_eui[])).
+
+9. By 8, event(ev_ed_auth_js(pkJ,j_eui[])).
+The goal is reached, represented in the following fact:
+event(ev_ed_auth_js(pkJ,j_eui[])).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+new sk_ta: bitstring creating sk_ta_2 at {1}
+
+new sk_ed: bitstring creating sk_ed_2 at {2}
+
+new sk_js: bitstring creating sk_js_2 at {3}
+
+new d_eui: bitstring creating d_eui_4 at {4}
+
+new j_eui: bitstring creating j_eui_3 at {5}
+
+out(pub, ~M) with ~M = pk(sk_ta_2) at {6}
+
+out(pub, ~M_1) with ~M_1 = j_eui_3 at {7}
+
+out(pub, ~M_2) with ~M_2 = d_eui_4 at {8}
+
+out(pub, ~M_3) with ~M_3 = sk_ta_2 at {9}
+
+new n: bitstring creating n_3 at {23} in copy a
+
+event ev_ed_start(d_eui_4,n_3) at {26} in copy a
+
+out(pub, (~M_4,~M_5,~M_6,~M_7)) with ~M_4 = j_eui_3, ~M_5 = d_eui_4, ~M_6 = n_3, ~M_7 = sign(sk_ed_2,jreq(j_eui_3,d_eui_4,n_3)) at {27} in copy a
+
+in(pub, (a_1,ds(~M_3,tlsa(~M_1,a_2)))) with ds(~M_3,tlsa(~M_1,a_2)) = ds(sk_ta_2,tlsa(j_eui_3,a_2)) at {28} in copy a
+
+event ev_ed_auth_js(a_2,j_eui_3) at {31} in copy a (goal)
+
+The event ev_ed_auth_js(a_2,j_eui_3) is executed at {31} in copy a.
+A trace has been found.
+RESULT event(ev_ed_auth_js(pkJ,j_2)) ==> event(ev_js_active(pkJ)) is false.
+Declared: select attacker(aes_enc(first16(*v),*jn))/-6000 [ignoreAFewTimes,hypothesis]
+-- Query event(ev_ed_key(ak,pe,pj)) ==> event(ev_js_key(ak,pe,pj)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+Termination warning: Selecting an hypothesis matching the conclusion.
+In case of non-termination, try a noselect declaration implying the following one:
+   noselect y:bitstring, nm_ed_1:bitstring; attacker(ds(sk_ta[],tlsa(nm_ed_1,pk(y)))).
+200 rules inserted. Base: 137 rules (67 with conclusion selected). Queue: 44 rules.
+Starting query event(ev_ed_key(ak,pe,pj)) ==> event(ev_js_key(ak,pe,pj))
+goal reachable: attacker(x) -> event(ev_ed_key(first16(dh(sk_ed[],pk(x))),pk(sk_ed[]),pk(x)))
+
+Derivation:
+
+1. We assume as hypothesis that
+attacker(x).
+
+2. By 1, the attacker may know x.
+Using the function pk the attacker may obtain pk(x).
+attacker(pk(x)).
+
+3. The message j_eui[] may be sent to the attacker at output {7}.
+attacker(j_eui[]).
+
+4. By 3, the attacker may know j_eui[].
+By 2, the attacker may know pk(x).
+Using the function tlsa the attacker may obtain tlsa(j_eui[],pk(x)).
+attacker(tlsa(j_eui[],pk(x))).
+
+5. The message sk_ta[] may be sent to the attacker at output {9}.
+attacker(sk_ta[]).
+
+6. By 5, the attacker may know sk_ta[].
+By 4, the attacker may know tlsa(j_eui[],pk(x)).
+Using the function ds the attacker may obtain ds(sk_ta[],tlsa(j_eui[],pk(x))).
+attacker(ds(sk_ta[],tlsa(j_eui[],pk(x)))).
+
+7. The attacker has some term joinnonce_2.
+attacker(joinnonce_2).
+
+8. The message pk(sk_ta[]) may be sent to the attacker at output {6}.
+attacker(pk(sk_ta[])).
+
+9. The attacker has some term name_1.
+attacker(name_1).
+
+10. The attacker initially knows tagED[].
+attacker(tagED[]).
+
+11. By 10, the attacker may know tagED[].
+By 9, the attacker may know name_1.
+Using the function 2-tuple the attacker may obtain (tagED[],name_1).
+attacker((tagED[],name_1)).
+
+12. The message (tagED[],name_1) that the attacker may have by 11 may be received at input {15}.
+So the message ds(sk_ta[],tlsa(d_eui[],pk(sk_ed[]))) may be sent to the attacker at output {17}.
+attacker(ds(sk_ta[],tlsa(d_eui[],pk(sk_ed[])))).
+
+13. By 12, the attacker may know ds(sk_ta[],tlsa(d_eui[],pk(sk_ed[]))).
+By 8, the attacker may know pk(sk_ta[]).
+Using the function vds the attacker may obtain tlsa(d_eui[],pk(sk_ed[])).
+attacker(tlsa(d_eui[],pk(sk_ed[]))).
+
+14. By 13, the attacker may know tlsa(d_eui[],pk(sk_ed[])).
+Using the function 2-proj-tlsa the attacker may obtain pk(sk_ed[]).
+attacker(pk(sk_ed[])).
+
+15. By 1, the attacker may know x.
+By 14, the attacker may know pk(sk_ed[]).
+Using the function dh the attacker may obtain dh(sk_ed[],pk(x)).
+attacker(dh(sk_ed[],pk(x))).
+
+16. By 15, the attacker may know dh(sk_ed[],pk(x)).
+Using the function first16 the attacker may obtain first16(dh(sk_ed[],pk(x))).
+attacker(first16(dh(sk_ed[],pk(x)))).
+
+17. By 16, the attacker may know first16(dh(sk_ed[],pk(x))).
+By 7, the attacker may know joinnonce_2.
+Using the function aes_enc the attacker may obtain aes_enc(first16(dh(sk_ed[],pk(x))),joinnonce_2).
+attacker(aes_enc(first16(dh(sk_ed[],pk(x))),joinnonce_2)).
+
+18. By 17, the attacker may know aes_enc(first16(dh(sk_ed[],pk(x))),joinnonce_2).
+By 6, the attacker may know ds(sk_ta[],tlsa(j_eui[],pk(x))).
+Using the function 2-tuple the attacker may obtain (aes_enc(first16(dh(sk_ed[],pk(x))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(x)))).
+attacker((aes_enc(first16(dh(sk_ed[],pk(x))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(x))))).
+
+19. The message (aes_enc(first16(dh(sk_ed[],pk(x))),joinnonce_2),ds(sk_ta[],tlsa(j_eui[],pk(x)))) that the attacker may have by 18 may be received at input {28}.
+So event ev_ed_key(first16(dh(sk_ed[],pk(x))),pk(sk_ed[]),pk(x)) may be executed at {35}.
+event(ev_ed_key(first16(dh(sk_ed[],pk(x))),pk(sk_ed[]),pk(x))).
+
+20. By 19, event(ev_ed_key(first16(dh(sk_ed[],pk(x))),pk(sk_ed[]),pk(x))).
+The goal is reached, represented in the following fact:
+event(ev_ed_key(first16(dh(sk_ed[],pk(x))),pk(sk_ed[]),pk(x))).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+new sk_ta: bitstring creating sk_ta_2 at {1}
+
+new sk_ed: bitstring creating sk_ed_2 at {2}
+
+new sk_js: bitstring creating sk_js_2 at {3}
+
+new d_eui: bitstring creating d_eui_4 at {4}
+
+new j_eui: bitstring creating j_eui_3 at {5}
+
+out(pub, ~M) with ~M = pk(sk_ta_2) at {6}
+
+out(pub, ~M_1) with ~M_1 = j_eui_3 at {7}
+
+out(pub, ~M_2) with ~M_2 = d_eui_4 at {8}
+
+out(pub, ~M_3) with ~M_3 = sk_ta_2 at {9}
+
+new n: bitstring creating n_3 at {23} in copy a
+
+event ev_ed_start(d_eui_4,n_3) at {26} in copy a
+
+out(pub, (~M_4,~M_5,~M_6,~M_7)) with ~M_4 = j_eui_3, ~M_5 = d_eui_4, ~M_6 = n_3, ~M_7 = sign(sk_ed_2,jreq(j_eui_3,d_eui_4,n_3)) at {27} in copy a
+
+in(dns, (tagED,a_1)) at {15} in copy a_2
+
+out(dns, ~M_8) with ~M_8 = ds(sk_ta_2,tlsa(d_eui_4,pk(sk_ed_2))) at {17} in copy a_2
+
+in(pub, (aes_enc(first16(dh(a_3,2-proj-tlsa(vds(~M_8,~M)))),a_4),ds(~M_3,tlsa(~M_1,pk(a_3))))) with aes_enc(first16(dh(a_3,2-proj-tlsa(vds(~M_8,~M)))),a_4) = aes_enc(first16(dh(sk_ed_2,pk(a_3))),a_4), ds(~M_3,tlsa(~M_1,pk(a_3))) = ds(sk_ta_2,tlsa(j_eui_3,pk(a_3))) at {28} in copy a
+
+event ev_ed_auth_js(pk(a_3),j_eui_3) at {31} in copy a
+
+event ev_ed_key(first16(dh(sk_ed_2,pk(a_3))),pk(sk_ed_2),pk(a_3)) at {35} in copy a (goal)
+
+The event ev_ed_key(first16(dh(sk_ed_2,pk(a_3))),pk(sk_ed_2),pk(a_3)) is executed at {35} in copy a.
+A trace has been found.
+RESULT event(ev_ed_key(ak,pe,pj)) ==> event(ev_js_key(ak,pe,pj)) is false.
+Declared: select attacker(aes_enc(first16(*v),*jn))/-6000 [ignoreAFewTimes,hypothesis]
+-- Query inj-event(ev_ed_auth_js(pkJ,j_2)) ==> inj-event(ev_js_active(pkJ)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+Termination warning: Selecting an hypothesis matching the conclusion.
+In case of non-termination, try a noselect declaration implying the following one:
+   noselect y:bitstring, nm_ed_1:bitstring; attacker(ds(sk_ta[],tlsa(nm_ed_1,pk(y)))).
+200 rules inserted. Base: 137 rules (64 with conclusion selected). Queue: 18 rules.
+Starting query inj-event(ev_ed_auth_js(pkJ,j_2)) ==> inj-event(ev_js_active(pkJ))
+goal reachable: attacker(encJA_3) && attacker(pkJ) -> inj-event(ev_ed_auth_js(pkJ,j_eui[]),@occ31_1)
+Abbreviations:
+@occ31_1 = @occ31[js_rr_1 = ds(sk_ta[],tlsa(j_eui[],pkJ)),encJA = encJA_3,!1 = @sid]
+
+Derivation:
+Abbreviations:
+@occ31_1 = @occ31[js_rr_1 = ds(sk_ta[],tlsa(j_eui[],pkJ)),encJA = encJA_3,!1 = @sid]
+
+1. We assume as hypothesis that
+attacker(pkJ).
+
+2. The message j_eui[] may be sent to the attacker at output {7}.
+attacker(j_eui[]).
+
+3. By 2, the attacker may know j_eui[].
+By 1, the attacker may know pkJ.
+Using the function tlsa the attacker may obtain tlsa(j_eui[],pkJ).
+attacker(tlsa(j_eui[],pkJ)).
+
+4. The message sk_ta[] may be sent to the attacker at output {9}.
+attacker(sk_ta[]).
+
+5. By 4, the attacker may know sk_ta[].
+By 3, the attacker may know tlsa(j_eui[],pkJ).
+Using the function ds the attacker may obtain ds(sk_ta[],tlsa(j_eui[],pkJ)).
+attacker(ds(sk_ta[],tlsa(j_eui[],pkJ))).
+
+6. We assume as hypothesis that
+attacker(encJA_3).
+
+7. By 6, the attacker may know encJA_3.
+By 5, the attacker may know ds(sk_ta[],tlsa(j_eui[],pkJ)).
+Using the function 2-tuple the attacker may obtain (encJA_3,ds(sk_ta[],tlsa(j_eui[],pkJ))).
+attacker((encJA_3,ds(sk_ta[],tlsa(j_eui[],pkJ)))).
+
+8. The message (encJA_3,ds(sk_ta[],tlsa(j_eui[],pkJ))) that the attacker may have by 7 may be received at input {28}.
+So event ev_ed_auth_js(pkJ,j_eui[]) may be executed at {31} in session @sid.
+inj-event(ev_ed_auth_js(pkJ,j_eui[]),@occ31_1).
+
+9. By 8, inj-event(ev_ed_auth_js(pkJ,j_eui[]),@occ31_1).
+The goal is reached, represented in the following fact:
+inj-event(ev_ed_auth_js(pkJ,j_eui[]),@occ31_1).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+new sk_ta: bitstring creating sk_ta_2 at {1}
+
+new sk_ed: bitstring creating sk_ed_2 at {2}
+
+new sk_js: bitstring creating sk_js_2 at {3}
+
+new d_eui: bitstring creating d_eui_4 at {4}
+
+new j_eui: bitstring creating j_eui_3 at {5}
+
+out(pub, ~M) with ~M = pk(sk_ta_2) at {6}
+
+out(pub, ~M_1) with ~M_1 = j_eui_3 at {7}
+
+out(pub, ~M_2) with ~M_2 = d_eui_4 at {8}
+
+out(pub, ~M_3) with ~M_3 = sk_ta_2 at {9}
+
+new n: bitstring creating n_3 at {23} in copy a
+
+event ev_ed_start(d_eui_4,n_3) at {26} in copy a
+
+out(pub, (~M_4,~M_5,~M_6,~M_7)) with ~M_4 = j_eui_3, ~M_5 = d_eui_4, ~M_6 = n_3, ~M_7 = sign(sk_ed_2,jreq(j_eui_3,d_eui_4,n_3)) at {27} in copy a
+
+in(pub, (a_1,ds(~M_3,tlsa(~M_1,a_2)))) with ds(~M_3,tlsa(~M_1,a_2)) = ds(sk_ta_2,tlsa(j_eui_3,a_2)) at {28} in copy a
+
+event ev_ed_auth_js(a_2,j_eui_3) at {31} in copy a (goal)
+
+The event ev_ed_auth_js(a_2,j_eui_3) is executed at {31} in copy a.
+A trace has been found.
+RESULT inj-event(ev_ed_auth_js(pkJ,j_2)) ==> inj-event(ev_js_active(pkJ)) is false.
+RESULT (even event(ev_ed_auth_js(pkJ,j_2)) ==> event(ev_js_active(pkJ)) is false.)
+
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker(s_appkey[]) is false.
+
+Query not attacker(s_nwkskey[]) is false.
+
+Query event(ev_js_auth_ed(pkE,d_2,n_3)) ==> event(ev_ed_start(d_2,n_3)) is false.
+
+Query event(ev_ed_auth_js(pkJ,j_2)) ==> event(ev_js_active(pkJ)) is false.
+
+Query event(ev_ed_key(ak,pe,pj)) ==> event(ev_js_key(ak,pe,pj)) is false.
+
+Query inj-event(ev_ed_auth_js(pkJ,j_2)) ==> inj-event(ev_js_active(pkJ)) is false.
+
+--------------------------------------------------------------
+

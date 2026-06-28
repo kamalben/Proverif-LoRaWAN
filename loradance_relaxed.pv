@@ -1,33 +1,40 @@
 (* ==========================================================================
    loradance_relaxed.pv
-   LoRaDANCE join protocol -- RELAXED / COMPROMISED-ASSUMPTION MODEL.
-   Matches: "Formal Security Analysis of LoRaDANCE Protocol" (final version).
+   LoRaDANCE join protocol -- RELAXED MODEL (FULL TRUST-ANCHOR COMPROMISE).
+   Matches: "Formal Security Analysis of LoRaDANCE Protocol" (revised version).
    Target: ProVerif 2.04 / 2.05.   Run:  proverif loradance_relaxed.pv
 
-   This file is the baseline with ONLY three assumption-level changes, marked
-   with >>> DIFF <<< below. The protocol process logic is unchanged.
+   This file is the revised baseline with ONE assumption-level change, marked
+   >>> DIFF <<<. The protocol process logic is byte-for-byte the baseline's.
 
-   KEY DERIVATION (identical to baseline; as in the original paper, no KDF):
-     AppKey  = leftmost 16 bytes of ECDH(sk, pk)   -> first16(.)
-     NwkSKey = LoRaWAN 1.0.x session-key derivation -> sessionkey(.)
+   ROLE OF THIS MODEL. It is an UPPER BOUND, not a surprising finding: it
+   removes DNSSEC integrity entirely (the attacker holds the root trust-anchor
+   key) and shows that, as expected, every security property collapses. Because
+   the trust anchor is the root of all DANE trust, this model does NOT separate
+   the effect of the individual assumptions. The realistic, surgical case -- a
+   single compromised delegation zone, which isolates one direction of the MITM
+   -- is modelled separately in loradance_singlezone.pv and is the headline
+   negative result of the paper (Attack 2).
 
-   WEAKENED ASSUMPTIONS (drop A1 in the strongest way):
-     DIFF 1  DNS attacker-controlled : channel dns is PUBLIC (was [private]).
-     DIFF 2  (none) -- neither model keeps a DevNonce table; it is inert for
-             the stated (non-injective) queries and, encoded as a ProVerif
-             table, breaks trace-reconstruction termination. So this is no
-             longer a baseline/relaxed difference.
-     DIFF 3  Trust anchor compromised : sk_ta is revealed to the attacker, so
-                                       it can forge any TLSA record and mount a
-                                       DNS man-in-the-middle.
+   KEY DERIVATION (identical to baseline; DevNonce bound into sessionkey):
+     AppKey  = first16(ECDH(sk, pk))
+     NwkSKey = sessionkey(AppKey, JoinNonce, DevNonce)
 
-   EXPECTED RESULTS (Table I, "Relaxed" column -- security breaks):
-     Q1 AppKey secrecy ................... false  (MITM derives AppKey)
-     Q2 NwkSKey secrecy ................. false  (cleartext on NS-JS)
-     Q3 ED->JS authentication (non-inj) . false  (forged ED record via leaked anchor)
-     Q4 ED auth of JS (non-inj) ......... false  (forged JS record)
-     Q5 key agreement (ED => JS) ........ false  (DNS MITM key substitution)
-     Q6 JS->ED authentication (inj) ..... false
+   WEAKENED ASSUMPTION (drop A1 in the strongest way):
+     DIFF  Trust anchor compromised : sk_ta is revealed to the attacker, so it
+                                       can forge ANY TLSA record under ANY name,
+                                       substitute public keys, and mount a full
+                                       bidirectional DNS man-in-the-middle.
+     (A2 EC keys secret and A3 honest-but-curious NS are kept.)
+
+   EXPECTED RESULTS (verified with ProVerif 2.04, "Relaxed" column -- collapses):
+     Q1  AppKey secrecy ................... false  (MITM derives AppKey both ways)
+     Q2  NwkSKey secrecy ................. false  (cleartext on NS-JS)
+     Q3  ED->JS authentication (non-inj) . false  (forged ED record via leaked anchor)
+     Q3i ED->JS authentication (inj) .... false  (forged record + no DevNonce cache)
+     Q4  ED auth of JS (non-inj) ........ false  (forged JS record + chosen-key Join-accept)
+     Q5  key agreement (ED => JS) ....... false  (DNS MITM key substitution)
+     Q6  JS->ED authentication (inj) .... false
    ========================================================================== *)
 
 (* -------------------- cryptographic primitives (identical) -------------------- *)
@@ -45,11 +52,14 @@ fun aes_enc(bitstring, bitstring): bitstring.
 reduc forall k: bitstring, m: bitstring;
   aes_dec(k, aes_enc(k, m)) = m.
 
-(* AppKey = leftmost 16 bytes of the ECDH secret: one-way truncation *)
-fun first16(bitstring): bitstring.
+(* SEPARATE marker cipher (distinct from aes_enc): tests secrecy of derived keys
+   only, so a marker can never be replayed as a Join-accept (re-grounds Q6/Q3i). *)
+fun senc(bitstring, bitstring): bitstring.
+reduc forall k: bitstring, m: bitstring;
+  sdec(k, senc(k, m)) = m.
 
-(* LoRaWAN 1.0.x session-key derivation from the AppKey: one-way *)
-fun sessionkey(bitstring, bitstring): bitstring.
+fun first16(bitstring): bitstring.
+fun sessionkey(bitstring, bitstring, bitstring): bitstring.   (* AppKey, JoinNonce, DevNonce *)
 
 fun ds(bitstring, bitstring): bitstring.
 reduc forall sk: bitstring, rr: bitstring;
@@ -58,13 +68,13 @@ reduc forall sk: bitstring, rr: bitstring;
 fun tlsa(bitstring, bitstring): bitstring [data].
 fun jreq(bitstring, bitstring, bitstring): bitstring [data].
 
-(* -------------------- channels -------------------- *)
+(* -------------------- channels (identical) -------------------- *)
 free pub:  channel.
 free nsjs: channel.              (* NS-JS link; NwkSKey sent here in clear *)
-(* >>> DIFF 1: DNS attacker-controlled (was [private]) <<< *)
-free dns:  channel.              (* DNS now PUBLIC: attacker can read/inject *)
+free dns:  channel.              (* DNS public: attacker reads/injects *)
 
 free tagED: bitstring.
+free tagJS: bitstring.
 
 (* -------------------- events (identical) -------------------- *)
 event ev_ed_start(bitstring, bitstring).
@@ -78,11 +88,7 @@ event ev_ed_key(bitstring, bitstring, bitstring).
 free s_appkey:  bitstring [private].
 free s_nwkskey: bitstring [private].
 
-(* -------------------- termination aid -------------------- *)
-(* Same as in the baseline (ProVerif manual Sec. 6.7.2): a star variable *v
-   matches any term, so this matches aes_enc(first16(dh(...)), joinnonce);
-   ignoreAFewTimes keeps the attacks findable. Selection-only, no verdict
-   changes. *)
+(* -------------------- termination aid (identical) -------------------- *)
 noselect v: bitstring, jn: bitstring;
   attacker(aes_enc(first16( *v), *jn)) [ ignoreAFewTimes ].
 
@@ -92,6 +98,9 @@ query attacker(s_nwkskey).                             (* Q2 *)
 
 query pkE: bitstring, d: bitstring, n: bitstring;      (* Q3, non-injective *)
   event(ev_js_auth_ed(pkE, d, n)) ==> event(ev_ed_start(d, n)).
+
+query pkE: bitstring, d: bitstring, n: bitstring;      (* Q3i, injective *)
+  inj-event(ev_js_auth_ed(pkE, d, n)) ==> inj-event(ev_ed_start(d, n)).
 
 query pkJ: bitstring, j: bitstring;                    (* Q4 *)
   event(ev_ed_auth_js(pkJ, j)) ==> event(ev_js_active(pkJ)).
@@ -103,11 +112,12 @@ query pkJ: bitstring, j: bitstring;                    (* Q6 *)
   inj-event(ev_ed_auth_js(pkJ, j)) ==>
   inj-event(ev_js_active(pkJ)).
 
-(* -------------------- DNS oracle (honest, public channel; ED record only) ---- *)
-let DNS_oracle(sk_ta: bitstring, d_eui: bitstring, pk_ed: bitstring) =
+(* -------------------- DNS oracle (honest; both records, public) -------------- *)
+let DNS_oracle(sk_ta: bitstring, d_eui: bitstring, pk_ed: bitstring,
+               j_eui: bitstring, pk_js: bitstring) =
     in(dns, (tag: bitstring, name: bitstring));
-    if tag = tagED then
-        out(dns, ds(sk_ta, tlsa(d_eui, pk_ed))).
+    if tag = tagED then out(dns, ds(sk_ta, tlsa(d_eui, pk_ed)))
+    else if tag = tagJS then out(dns, ds(sk_ta, tlsa(j_eui, pk_js))).
 
 (* -------------------- End Device (identical) -------------------- *)
 let ED_proc(sk_ed: bitstring, d_eui: bitstring, j_eui: bitstring,
@@ -122,13 +132,13 @@ let ED_proc(sk_ed: bitstring, d_eui: bitstring, j_eui: bitstring,
     let tlsa(nm_js, pk_js_recv) = vds(js_rr, pk_ta) in
     if nm_js = j_eui then
     (
-        event ev_ed_auth_js(pk_js_recv, j_eui);
         let appkey    = first16(dh(sk_ed, pk_js_recv)) in
         let joinnonce = aes_dec(appkey, encJA) in
-        let nwkskey   = sessionkey(appkey, joinnonce) in
+        event ev_ed_auth_js(pk_js_recv, j_eui);
+        let nwkskey   = sessionkey(appkey, joinnonce, n) in
         event ev_ed_key(appkey, pk(sk_ed), pk_js_recv);
-        out(pub, aes_enc(appkey,  s_appkey));
-        out(pub, aes_enc(nwkskey, s_nwkskey))
+        out(pub, senc(appkey,  s_appkey));
+        out(pub, senc(nwkskey, s_nwkskey))
     ).
 
 (* -------------------- Network Server (identical) -------------------- *)
@@ -139,7 +149,7 @@ let NS_proc(d_eui: bitstring) =
     in(nsjs, (encJA: bitstring, js_rr: bitstring, nwks: bitstring));
     out(pub, (encJA, js_rr)).
 
-(* -------------------- Join Server (steps 4-11) -------------------- *)
+(* -------------------- Join Server (identical) -------------------- *)
 let JS_proc(sk_js: bitstring, j_eui: bitstring, pk_ta: bitstring,
             js_rr: bitstring) =
     in(nsjs, (j: bitstring, d: bitstring, n: bitstring, sg: bitstring));
@@ -153,8 +163,9 @@ let JS_proc(sk_js: bitstring, j_eui: bitstring, pk_ta: bitstring,
         event ev_js_key(appkey, pk_ed, pk(sk_js));
         new joinnonce: bitstring;
         let encJA = aes_enc(appkey, joinnonce) in
-        let nwkskey = sessionkey(appkey, joinnonce) in
+        let nwkskey = sessionkey(appkey, joinnonce, n) in
         event ev_js_active(pk(sk_js));
+        out(pub, senc(appkey, s_appkey));
         out(nsjs, (encJA, js_rr, nwkskey))  (* step 11: NwkSKey in clear *)
     ).
 
@@ -166,12 +177,13 @@ process
     new d_eui: bitstring;
     new j_eui: bitstring;
     out(pub, pk(sk_ta)); out(pub, j_eui); out(pub, d_eui);
-    (* >>> DIFF 3: Trust anchor compromised -- attacker can forge TLSA records,
-       substitute public keys, and mount a DNS man-in-the-middle <<< *)
+    out(pub, pk(sk_ed)); out(pub, pk(sk_js));
+    (* >>> DIFF: FULL trust-anchor compromise. Revealing sk_ta lets the attacker
+       forge any TLSA record under any name and run a bidirectional DNS MITM. <<< *)
     out(pub, sk_ta);
     let js_rr = ds(sk_ta, tlsa(j_eui, pk(sk_js))) in
     (
-        ! DNS_oracle(sk_ta, d_eui, pk(sk_ed))
+        ! DNS_oracle(sk_ta, d_eui, pk(sk_ed), j_eui, pk(sk_js))
       | ! ED_proc(sk_ed, d_eui, j_eui, pk(sk_ta))
       | ! NS_proc(d_eui)
       | ! JS_proc(sk_js, j_eui, pk(sk_ta), js_rr)

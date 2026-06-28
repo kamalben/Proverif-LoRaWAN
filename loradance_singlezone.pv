@@ -1,0 +1,219 @@
+(* ==========================================================================
+   loradance_singlezone.pv
+   LoRaDANCE join protocol -- SINGLE-ZONE DNSSEC COMPROMISE (TWO-LEVEL CHAIN,
+   NAMESPACE-BOUND).  Matches the paper's Attack 2.
+   Target: ProVerif 2.04 / 2.05.  Verified to terminate under 2.04.
+
+   ------------------------------------------------------------------------
+   THE FIX: NAMESPACE-BOUND DELEGATION
+   A DNSSEC delegation does not hand a zone key blanket signing power; it
+   authorises that key for ONE namespace (deveuis or joineuis). We model
+   this by signing a (zoneTag, zoneKey) pair at the root and tagging every leaf
+   with its zone:
+       deleg = ds(sk_ta,   zdel(zTag, pk(sk_zone)))
+       leaf  = ds(sk_zone, tlsa(zTag, name, pkX))
+   A verifier accepts a record only if the delegation's tag, the leaf's tag,
+   and the expected zone for that record all agree:
+       zdel(zt_d, zpk) = vds(deleg, pk_ta)
+       tlsa(zt_l, nm, pkX) = vds(leaf, zpk)
+       zt_d = zt_l = <expected zone>.
+   The root only ever signs zdel(zED, pk(sk_zed)) and zdel(zJS, pk(sk_zjs)),
+   so it never authorises the ED-zone key for the JS namespace. Leaking sk_zed
+   therefore lets the attacker forge ED records ONLY. (Without this binding a
+   leaked zone key would sign records for ANY name and the single-zone case
+   would collapse into the relaxed one; the binding is essential, not cosmetic.)
+   ------------------------------------------------------------------------
+
+   COMPROMISE (this file): the ED-record zone key sk_zed is revealed; sk_ta and
+   the JS-record zone key sk_zjs are kept secret. This impersonates the ED
+   TOWARD the JS (uplink direction).
+
+   EXPECTED RESULTS (verified, ProVerif 2.04, ED-record zone compromised):
+     Q1  AppKey secrecy ................... false  (JS shares AppKey with attacker)
+     Q2  NwkSKey secrecy ................. false  (cleartext on NS-JS)
+     Q3  ED->JS authentication (non-inj) . false  (forged ED leaf + re-signed join)
+     Q3i ED->JS authentication (inj) .... false  (forged record + no DevNonce cache)
+     Q4  ED auth of JS (non-inj) ........ true   (JS-zone key not compromised)
+     Q5  key agreement (ED => JS) ....... true   (ED cannot be driven to a wrong key)
+     Q6  JS->ED authentication (inj) .... false  (static-AppKey downlink replay)
+   For the symmetric JS-zone case, reveal sk_zjs instead of sk_zed (line marked
+   below): the verdicts flip to Q3 true, Q4/Q5 false (Q1/Q2/Q3i/Q6 stay false).
+   A full bidirectional MITM therefore needs BOTH zones (or the root).
+   ========================================================================== *)
+
+(* set reconstructTrace = false.   (* uncomment if trace reconstruction loops *) *)
+
+(* -------------------- cryptographic primitives -------------------- *)
+fun pk(bitstring): bitstring.
+
+fun dh(bitstring, bitstring): bitstring.
+equation forall x: bitstring, y: bitstring;
+  dh(x, pk(y)) = dh(y, pk(x)).
+
+fun sign(bitstring, bitstring): bitstring.
+reduc forall sk: bitstring, m: bitstring;
+  checksign(sign(sk, m), pk(sk)) = m.
+
+fun aes_enc(bitstring, bitstring): bitstring.
+reduc forall k: bitstring, m: bitstring;
+  aes_dec(k, aes_enc(k, m)) = m.
+
+(* SEPARATE marker cipher (distinct from aes_enc): tests secrecy of derived keys
+   only, so a marker can never be replayed as a Join-accept (re-grounds Q6/Q3i). *)
+fun senc(bitstring, bitstring): bitstring.
+reduc forall k: bitstring, m: bitstring;
+  sdec(k, senc(k, m)) = m.
+
+fun first16(bitstring): bitstring.
+fun sessionkey(bitstring, bitstring, bitstring): bitstring.
+
+fun ds(bitstring, bitstring): bitstring.
+reduc forall sk: bitstring, rr: bitstring;
+  vds(ds(sk, rr), pk(sk)) = rr.
+
+(* zdel = root-signed (zoneTag, zoneKey); tlsa now carries its zoneTag *)
+fun zdel(bitstring, bitstring): bitstring [data].
+fun tlsa(bitstring, bitstring, bitstring): bitstring [data].
+fun jreq(bitstring, bitstring, bitstring): bitstring [data].
+
+(* -------------------- channels and zone tags -------------------- *)
+free pub:  channel.
+free nsjs: channel.
+free dns:  channel.
+
+free tagED: bitstring.       (* DNS lookup tag (which record to fetch) *)
+free tagJS: bitstring.
+free zED:   bitstring.       (* namespace: deveuis.iot.rd.nic.fr  *)
+free zJS:   bitstring.       (* namespace: joineuis.iot.rd.nic.fr *)
+
+(* -------------------- events -------------------- *)
+event ev_ed_start(bitstring, bitstring).
+event ev_js_auth_ed(bitstring, bitstring, bitstring).
+event ev_js_active(bitstring).
+event ev_ed_auth_js(bitstring, bitstring).
+event ev_js_key(bitstring, bitstring, bitstring).
+event ev_ed_key(bitstring, bitstring, bitstring).
+
+free s_appkey:  bitstring [private].
+free s_nwkskey: bitstring [private].
+
+noselect v: bitstring, jn: bitstring;
+  attacker(aes_enc(first16( *v), *jn)) [ ignoreAFewTimes ].
+
+(* -------------------- queries -------------------- *)
+query attacker(s_appkey).                              (* Q1 *)
+query attacker(s_nwkskey).                             (* Q2 *)
+query pkE: bitstring, d: bitstring, n: bitstring;      (* Q3 *)
+  event(ev_js_auth_ed(pkE, d, n)) ==> event(ev_ed_start(d, n)).
+
+(* Q3i: INJECTIVE ED->JS authentication. Exposes the UPLINK replay surface: with
+   no DevNonce cache a recorded Join-request is accepted again, so two JS
+   acceptances map to one ED start. ProVerif refutes this with a concrete trace. *)
+query pkE: bitstring, d: bitstring, n: bitstring;      (* Q3i *)
+  inj-event(ev_js_auth_ed(pkE, d, n)) ==> inj-event(ev_ed_start(d, n)).
+query pkJ: bitstring, j: bitstring;                    (* Q4 *)
+  event(ev_ed_auth_js(pkJ, j)) ==> event(ev_js_active(pkJ)).
+query ak: bitstring, pe: bitstring, pj: bitstring;     (* Q5 *)
+  event(ev_ed_key(ak, pe, pj)) ==> event(ev_js_key(ak, pe, pj)).
+query pkJ: bitstring, j: bitstring;                    (* Q6 *)
+  inj-event(ev_ed_auth_js(pkJ, j)) ==> inj-event(ev_js_active(pkJ)).
+
+(* -------------------- DNS oracle: namespace-bound two-level chains ----------- *)
+let DNS_oracle(sk_ta: bitstring, sk_zed: bitstring, sk_zjs: bitstring,
+               d_eui: bitstring, pk_ed: bitstring,
+               j_eui: bitstring, pk_js: bitstring) =
+    in(dns, (tag: bitstring, name: bitstring));
+    if tag = tagED then
+        out(dns, (ds(sk_ta, zdel(zED, pk(sk_zed))),
+                  ds(sk_zed, tlsa(zED, d_eui, pk_ed))))
+    else if tag = tagJS then
+        out(dns, (ds(sk_ta, zdel(zJS, pk(sk_zjs))),
+                  ds(sk_zjs, tlsa(zJS, j_eui, pk_js)))).
+
+(* -------------------- End Device -------------------- *)
+(* Verifies the JS chain: delegation tag, leaf tag, and the expected JS zone
+   must all agree, so only the sk_zjs-signed JS namespace is accepted. *)
+let ED_proc(sk_ed: bitstring, d_eui: bitstring, j_eui: bitstring,
+            pk_ta: bitstring) =
+    new n: bitstring;
+    let body  = jreq(j_eui, d_eui, n) in
+    let sigma = sign(sk_ed, body) in
+    event ev_ed_start(d_eui, n);
+    out(pub, (j_eui, d_eui, n, sigma));
+
+    in(pub, (encJA: bitstring, deleg_j: bitstring, leaf_j: bitstring));
+    let zdel(zt_d, zpk_j) = vds(deleg_j, pk_ta) in
+    let tlsa(zt_l, nm_js, pk_js_recv) = vds(leaf_j, zpk_j) in
+    if zt_d = zt_l then
+    if zt_l = zJS then
+    if nm_js = j_eui then
+    (
+        let appkey    = first16(dh(sk_ed, pk_js_recv)) in
+        let joinnonce = aes_dec(appkey, encJA) in
+        event ev_ed_auth_js(pk_js_recv, j_eui);
+        let nwkskey   = sessionkey(appkey, joinnonce, n) in
+        event ev_ed_key(appkey, pk(sk_ed), pk_js_recv);
+        out(pub, senc(appkey,  s_appkey));
+        out(pub, senc(nwkskey, s_nwkskey))
+    ).
+
+(* -------------------- Network Server (honest relay) -------------------- *)
+let NS_proc(d_eui: bitstring) =
+    in(pub, (j: bitstring, d: bitstring, n: bitstring, sg: bitstring));
+    if d = d_eui then
+        out(nsjs, (j, d, n, sg));
+    in(nsjs, (encJA: bitstring, deleg_j: bitstring, leaf_j: bitstring,
+              nwks: bitstring));
+    out(pub, (encJA, deleg_j, leaf_j)).
+
+(* -------------------- Join Server -------------------- *)
+(* Verifies the ED chain with the same namespace check against the ED zone. *)
+let JS_proc(sk_js: bitstring, j_eui: bitstring, pk_ta: bitstring,
+            deleg_js: bitstring, leaf_js: bitstring) =
+    in(nsjs, (j: bitstring, d: bitstring, n: bitstring, sg: bitstring));
+    out(dns, (tagED, d));
+    in(dns, (deleg_e: bitstring, leaf_e: bitstring));
+    let zdel(zt_d, zpk_e) = vds(deleg_e, pk_ta) in
+    let tlsa(zt_l, nm_ed, pk_ed) = vds(leaf_e, zpk_e) in
+    if zt_d = zt_l then
+    if zt_l = zED then
+    if nm_ed = d then (
+        let jreq(=j, =d, =n) = checksign(sg, pk_ed) in
+        event ev_js_auth_ed(pk_ed, d, n);
+        let appkey = first16(dh(sk_js, pk_ed)) in
+        event ev_js_key(appkey, pk_ed, pk(sk_js));
+        new joinnonce: bitstring;
+        let encJA = aes_enc(appkey, joinnonce) in
+        let nwkskey = sessionkey(appkey, joinnonce, n) in
+        event ev_js_active(pk(sk_js));
+        out(pub, senc(appkey, s_appkey));   (* JS-side AppKey marker *)
+        out(nsjs, (encJA, deleg_js, leaf_js, nwkskey))
+    ).
+
+(* -------------------- main -------------------- *)
+process
+    new sk_ta:  bitstring;     (* root anchor, honest *)
+    new sk_zed: bitstring;     (* ED-record zone key (deveuis.* ) *)
+    new sk_zjs: bitstring;     (* JS-record zone key (joineuis.* ), honest *)
+    new sk_ed:  bitstring;
+    new sk_js:  bitstring;
+    new d_eui:  bitstring;
+    new j_eui:  bitstring;
+    out(pub, pk(sk_ta)); out(pub, j_eui); out(pub, d_eui);
+    out(pub, pk(sk_ed)); out(pub, pk(sk_js));
+    (* genuine, public, namespace-bound delegations *)
+    out(pub, ds(sk_ta, zdel(zED, pk(sk_zed))));
+    out(pub, ds(sk_ta, zdel(zJS, pk(sk_zjs))));
+    (* the JS record (chain) is public *)
+    let deleg_js = ds(sk_ta, zdel(zJS, pk(sk_zjs))) in
+    let leaf_js  = ds(sk_zjs, tlsa(zJS, j_eui, pk(sk_js))) in
+    out(pub, (deleg_js, leaf_js));
+    (* >>> SINGLE-ZONE COMPROMISE: leak the ED-record zone key only.
+       For the symmetric JS-zone case, replace the next line by out(pub, sk_zjs). <<< *)
+    out(pub, sk_zed);
+    (
+        ! DNS_oracle(sk_ta, sk_zed, sk_zjs, d_eui, pk(sk_ed), j_eui, pk(sk_js))
+      | ! ED_proc(sk_ed, d_eui, j_eui, pk(sk_ta))
+      | ! NS_proc(d_eui)
+      | ! JS_proc(sk_js, j_eui, pk(sk_ta), deleg_js, leaf_js)
+    )

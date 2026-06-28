@@ -1,59 +1,95 @@
 (* ==========================================================================
    loradance_baseline.pv
    LoRaDANCE join protocol (Ayoub et al., IEEE WiMob 2024) -- BASELINE MODEL.
-   Matches: "Formal Security Analysis of LoRaDANCE Protocol" (final version).
+   Matches: "Formal Security Analysis of LoRaDANCE Protocol" (revised version).
    Target: ProVerif 2.04 / 2.05.   Run:  proverif loradance_baseline.pv
 
-   KEY DERIVATION (as in the original paper, no KDF):
+   ------------------------------------------------------------------------
+   WHAT THIS MODEL ESTABLISHES
+   Under the protocol's own trust assumptions (A1-A3 below) ProVerif CONFIRMS
+   LoRaDANCE's central claim -- mutual authentication of ED and JS without a
+   pre-shared secret -- together with AppKey secrecy and key agreement. The
+   model then exposes the preconditions and limitations that the informal
+   argument leaves implicit (NwkSKey backend confidentiality, no forward
+   secrecy, Join-accept freshness). This is a verification-and-refinement
+   result, NOT a break of the protocol.
+   ------------------------------------------------------------------------
+
+   KEY DERIVATION (as in the original paper, no dedicated KDF):
      AppKey  = leftmost 16 bytes of ECDH(sk, pk)   -> modelled by first16(.)
-     NwkSKey = LoRaWAN 1.0.x session-key derivation from AppKey and the
-               JoinNonce carried in the Join-accept -> modelled by sessionkey(.)
-     first16 and sessionkey are one-way symbols with no inverse, which matches
-     the deployed derivation rather than a strengthened one.
+     NwkSKey = LoRaWAN 1.0.x session-key derivation
+               = sessionkey(AppKey, JoinNonce, DevNonce)
+     In LoRaWAN 1.0.x the session keys are
+       aes128(AppKey, 0x01|JoinNonce|NetID|DevNonce|pad)   (NwkSKey)
+     so the ED's own DevNonce is bound into the session key. We model this
+     with the three-argument one-way symbol sessionkey(.); NetID is a public
+     constant and is abstracted away. This binding is the reason a replayed
+     Join-accept (carrying an old JoinNonce) does NOT yield key reuse but a
+     key DESYNCHRONISATION at the device -- see Q6 below.
 
    BASELINE TRUST ASSUMPTIONS (security holds under these):
-     A1  DNSSEC integrity   : dns is PUBLIC; authenticity comes from the
-                              trust-anchor signature, i.e. sk_ta is never
-                              revealed (the attacker can read records but
-                              cannot forge them).
-     A2  EC keys secret     : sk_ed, sk_js created with new.
+     A1  DNSSEC integrity : dns is PUBLIC; authenticity comes from the trust-
+                            anchor signature, i.e. sk_ta is never revealed.
+                            The attacker can READ every TLSA record (DANE
+                            records are world-readable) and INJECT forged ones,
+                            but a forged record fails vds and is rejected.
+     A2  EC keys secret   : sk_ed, sk_js created with new and never revealed.
      A3  NS honest-but-curious : NS relays messages faithfully.
 
+   PUBLIC TLSA RECORDS.  Both the ED record and the JS record are public:
+   they are served on the public dns channel by DNS_oracle and the raw public
+   keys are output to the attacker in main. The JS record is therefore NOT a
+   secret -- the attacker may fetch or replay it at will. Authentication of the
+   JS at the ED (Q4) consequently rests on AppKey confidentiality (only the
+   holder of sk_js can produce a Join-accept that the ED decrypts), NOT on any
+   secrecy of the JS record.
+
    DevNonce store (abstracted away): the real LoRaWAN JS keeps a single-use
-   DevNonce store. We do NOT model it as a ProVerif table, for two reasons:
-   (1) it is inert for every query we state -- Q3 is non-injective, and no
-       query depends on the single-use property, so its presence changes no
-       verdict; and
-   (2) encoding it as a "get seenNonce(=n) in 0 else insert seenNonce(n)"
-       table makes ProVerif's trace reconstruction loop (it never reaches the
-       RESULT lines) -- itself a symptom of ProVerif's difficulty with mutable
-       state. Injective replay-resistance is therefore discussed separately in
-       the paper and enforced by a JoinNonce/DevNonce freshness check.
+   DevNonce store. We do NOT model it as a ProVerif table. Two points must be
+   kept separate. (i) Modelling choice: with no cache, replay is possible, so
+   the INJECTIVE queries Q3i and Q6 correctly FAIL and ProVerif returns a
+   concrete trace -- this is a sound refutation, not a tool artefact. (ii) Tool
+   limitation: even WITH a "get seen(=n) in 0 else insert seen(n)" cache,
+   ProVerif's Horn-clause abstraction treats inserted facts as persistent, so it
+   cannot certify single use; hence PROVING that a fixed protocol restores
+   injective agreement is the job of a stateful tool (GSVerif / Tamarin). In
+   short: ProVerif here refutes injectivity definitively; proving the mitigation
+   is future work.
+
+   MARKER PRIMITIVE (re-grounds Q6/Q3i): secrecy of the derived keys is tested
+   with a DEDICATED cipher senc(.) that is distinct from the Join-accept cipher
+   aes_enc(.). This matters: if the AppKey marker were aes_enc(appkey, s_appkey)
+   it would itself be a valid ciphertext under the AppKey and the solver could
+   "replay" the marker between two ED sessions WITHOUT any Join Server present,
+   yielding an artefactual Q6 trace. With senc(.) the only aes_enc(appkey, .)
+   term in the system is a GENUINE Join-accept produced by a real JS, so the Q6
+   trace is a faithful downlink replay (one JS activation, two ED acceptances).
 
    NOTE on Q2: LoRaWAN sends NwkSKey on the NS-JS link in the clear (step 11).
    We model nsjs as PUBLIC so this design choice is visible; hence Q2 is FALSE
    here by design (paper Attack 1). To model an encrypted backend (TLS 1.3 on
-   NS-JS), make nsjs [private]; Q2 then holds.
+   NS-JS, as TS002 recommends), make nsjs [private]; Q2 then holds.
 
-   EXPECTED RESULTS (Table I, "Base" column):
-     Q1 AppKey secrecy ................... true
-     Q2 NwkSKey secrecy ................. false  (cleartext on NS-JS)
-     Q3 ED->JS authentication (non-inj) . true   (unforgeable ECDSA + DNSSEC)
-     Q4 ED auth of JS (non-inj) ......... true
-     Q5 key agreement (ED => JS) ........ true
-     Q6 JS->ED authentication (inj) ..... false  (static AppKey, downlink replay)
-     FS forward secrecy ................. false  (uncomment phase block at end)
+   EXPECTED RESULTS (verified with ProVerif 2.04, "Baseline" column):
+     Q1  AppKey secrecy ................... true
+     Q2  NwkSKey secrecy ................. false  (cleartext on NS-JS)
+     Q3  ED->JS authentication (non-inj) . true   (unforgeable ECDSA + DNSSEC)
+     Q3i ED->JS authentication (inj) .... false  (no DevNonce cache: uplink replay)
+     Q4  ED auth of JS (non-inj) ........ true   (Join-accept decrypts => peer holds sk_js)
+     Q5  key agreement (ED => JS) ....... true
+     Q6  JS->ED authentication (inj) .... false  (static AppKey: genuine downlink replay)
+     FS  forward secrecy ................ false  (uncomment phase block at end)
    ========================================================================== *)
 
-(* -------------------- cryptographic primitives -------------------- *)
-(* FALLBACK for non-termination: if ProVerif still loops in trace
-   reconstruction on your build, uncomment the next line. It disables attack
-   reconstruction, so the run always terminates; the trade-off is that the
-   violated queries (Q2, Q6) are then reported as "cannot be proved" instead of
-   "false" (the goal is still shown reachable, and the concrete attacks are
-   given in the paper). *)
+(* FALLBACK for non-termination: if ProVerif loops in trace reconstruction on
+   your build, uncomment the next line. It disables attack reconstruction, so
+   the run always terminates; the violated queries (Q2, Q3i, Q6) are then
+   reported as "cannot be proved" (goal still shown reachable; concrete traces
+   are in the paper). With reconstruction ON (default) all three are definitive
+   "false" with faithful traces. *)
 (* set reconstructTrace = false. *)
 
+(* -------------------- cryptographic primitives -------------------- *)
 (* asymmetric keys: one pk constructor, distinct per role *)
 fun pk(bitstring): bitstring.
 
@@ -72,11 +108,18 @@ fun aes_enc(bitstring, bitstring): bitstring.
 reduc forall k: bitstring, m: bitstring;
   aes_dec(k, aes_enc(k, m)) = m.
 
+(* SEPARATE marker cipher (distinct from aes_enc): tests secrecy of derived keys
+   only, so a marker can never be replayed as a Join-accept (re-grounds Q6/Q3i). *)
+fun senc(bitstring, bitstring): bitstring.
+reduc forall k: bitstring, m: bitstring;
+  sdec(k, senc(k, m)) = m.
+
 (* AppKey = leftmost 16 bytes of the ECDH secret: one-way truncation *)
 fun first16(bitstring): bitstring.
 
-(* LoRaWAN 1.0.x session-key derivation from the AppKey: one-way *)
-fun sessionkey(bitstring, bitstring): bitstring.
+(* LoRaWAN 1.0.x session-key derivation: one-way in (AppKey, JoinNonce, DevNonce).
+   DevNonce is the ED's freshness contribution, bound into the session key. *)
+fun sessionkey(bitstring, bitstring, bitstring): bitstring.
 
 (* DNSSEC trust-anchor signing: vds is a DESTRUCTOR *)
 fun ds(bitstring, bitstring): bitstring.
@@ -91,14 +134,10 @@ free pub:  channel.              (* radio + NS-ED, attacker controlled *)
 free nsjs: channel.              (* NS-JS link; NwkSKey sent here in clear *)
 free dns:  channel.              (* DNS is PUBLIC data; A1 = authenticity via
                                     the trust-anchor signature (sk_ta secret),
-                                    NOT channel privacy. A public dns also
-                                    avoids the private-channel trace-
-                                    reconstruction loop. *)
+                                    NOT channel privacy. *)
 
-free tagED: bitstring.
-
-(* No DevNonce table: it is inert for the stated queries and modelling it as a
-   ProVerif table breaks trace-reconstruction termination (see header). *)
+free tagED: bitstring.           (* DNS lookup tag for the ED record *)
+free tagJS: bitstring.           (* DNS lookup tag for the JS record *)
 
 (* -------------------- events -------------------- *)
 event ev_ed_start(bitstring, bitstring).              (* DevEUI, DevNonce *)
@@ -115,13 +154,12 @@ free s_nwkskey: bitstring [private].
 (* -------------------- termination aid -------------------- *)
 (* ProVerif's resolution loops on the encrypted Join-accept under the STATIC
    AppKey, i.e. aes_enc(first16(...), joinnonce) with a fresh JoinNonce under
-   replication ("Selecting an hypothesis matching the conclusion" warning).
-   Per the ProVerif manual (Sec. 6.7.2): a star variable *v matches ANY term
-   (an ordinary variable would match only variables, so first16(v) would NOT
-   match first16(dh(...))). The ignoreAFewTimes option lets ProVerif still
-   select this fact a bounded number of times during the verification stage,
-   so the Q2/Q6 attacks are still found (verdicts unchanged); it only steers
-   the selection function and never affects soundness. *)
+   replication. Per the ProVerif manual (Sec. 6.7.2): a star variable *v
+   matches ANY term; ignoreAFewTimes lets ProVerif still select the fact a
+   bounded number of times. With the dedicated marker cipher senc(.) this no
+   longer interferes with the refutation: Q3i and Q6 terminate as definitive
+   "false" with faithful traces. The declaration only steers the selection
+   function and never affects soundness. *)
 noselect v: bitstring, jn: bitstring;
   attacker(aes_enc(first16( *v), *jn)) [ ignoreAFewTimes ].
 
@@ -129,36 +167,50 @@ noselect v: bitstring, jn: bitstring;
 query attacker(s_appkey).                              (* Q1 *)
 query attacker(s_nwkskey).                             (* Q2 *)
 
-(* Q3: ED -> JS authentication, NON-injective.
-   The injective variant would also rule out replay of a Join-request, but it
-   is not provable here: injectivity rests on the DevNonce store being
-   single-use, which is mutable state that ProVerif over-approximates. *)
+(* Q3: ED -> JS authentication, NON-injective. Holds because the ECDSA
+   signature over the Join-request is unforgeable and the JS reads the authentic
+   pk_ed from DNSSEC. The injective variant is Q3i below. *)
 query pkE: bitstring, d: bitstring, n: bitstring;      (* Q3 *)
   event(ev_js_auth_ed(pkE, d, n)) ==> event(ev_ed_start(d, n)).
 
+(* Q3i: INJECTIVE ED->JS authentication. Exposes the UPLINK replay surface: with
+   no DevNonce cache a recorded Join-request is accepted again, so two JS
+   acceptances map to one ED start. ProVerif refutes this with a concrete trace. *)
+query pkE: bitstring, d: bitstring, n: bitstring;      (* Q3i *)
+  inj-event(ev_js_auth_ed(pkE, d, n)) ==> inj-event(ev_ed_start(d, n)).
+
+(* Q4: ED authenticates JS, NON-injective. Holds because ev_ed_auth_js fires
+   only after the ED decrypts the Join-accept, which requires the AppKey, which
+   requires sk_js. *)
 query pkJ: bitstring, j: bitstring;                    (* Q4 *)
   event(ev_ed_auth_js(pkJ, j)) ==> event(ev_js_active(pkJ)).
 
 (* Q5: key agreement, sound direction -- the ED commits to a key only if a JS
-   computed the SAME key with the SAME public keys. The reverse direction does
-   not hold and is not a flaw (JS derives unilaterally; attacker may drop the
-   downlink). *)
+   computed the SAME AppKey with the SAME public keys. The reverse direction
+   does not hold and is not a flaw (JS derives unilaterally; attacker may drop
+   the downlink). *)
 query ak: bitstring, pe: bitstring, pj: bitstring;     (* Q5 *)
   event(ev_ed_key(ak, pe, pj)) ==> event(ev_js_key(ak, pe, pj)).
 
+(* Q6: injective JS authentication. FALSE with a faithful trace: the static
+   AppKey lets a GENUINE Join-accept (produced by one real JS activation) be
+   replayed to a second ED session, so two ED acceptances match one JS
+   activation. The dedicated marker cipher senc(.) guarantees the replayed term
+   is a real Join-accept, not a reflected secrecy marker. *)
 query pkJ: bitstring, j: bitstring;                    (* Q6 *)
   inj-event(ev_ed_auth_js(pkJ, j)) ==>
   inj-event(ev_js_active(pkJ)).
 
-(* -------------------- DNS oracle (publishes the ED's authentic record) -----
-   Serves ONLY the End-Device TLSA record. The Join-Server's own record is
-   never served here: it is given to the JS as a private parameter and emitted
-   only by the JS itself (after ev_js_active), so the attacker cannot obtain it
-   beforehand -- this is what keeps Q4 (ED authenticates JS) true. *)
-let DNS_oracle(sk_ta: bitstring, d_eui: bitstring, pk_ed: bitstring) =
+(* -------------------- DNS oracle (publishes the AUTHENTIC, PUBLIC records) ---
+   Serves BOTH the ED and the JS TLSA record on the public dns channel, so the
+   attacker can fetch either record's public key at any time -- DANE records
+   are world-readable. In the baseline sk_ta is secret, so the oracle's records
+   are the only well-formed ones; a forged record fails vds at the verifier. *)
+let DNS_oracle(sk_ta: bitstring, d_eui: bitstring, pk_ed: bitstring,
+               j_eui: bitstring, pk_js: bitstring) =
     in(dns, (tag: bitstring, name: bitstring));
-    if tag = tagED then
-        out(dns, ds(sk_ta, tlsa(d_eui, pk_ed))).
+    if tag = tagED then out(dns, ds(sk_ta, tlsa(d_eui, pk_ed)))
+    else if tag = tagJS then out(dns, ds(sk_ta, tlsa(j_eui, pk_js))).
 
 (* -------------------- End Device (steps 1, 13-16) -------------------- *)
 let ED_proc(sk_ed: bitstring, d_eui: bitstring, j_eui: bitstring,
@@ -170,16 +222,23 @@ let ED_proc(sk_ed: bitstring, d_eui: bitstring, j_eui: bitstring,
     out(pub, (j_eui, d_eui, n, sigma));                       (* step 1 *)
 
     in(pub, (encJA: bitstring, js_rr: bitstring));            (* steps 13-15 *)
+    (* The JS record is PUBLIC and may be replayed; it only yields pk_js. *)
     let tlsa(nm_js, pk_js_recv) = vds(js_rr, pk_ta) in        (* step 16 *)
     if nm_js = j_eui then
     (
-        event ev_ed_auth_js(pk_js_recv, j_eui);
         let appkey    = first16(dh(sk_ed, pk_js_recv)) in
-        let joinnonce = aes_dec(appkey, encJA) in             (* accept Join-accept; no freshness check *)
-        let nwkskey   = sessionkey(appkey, joinnonce) in
+        (* Successful decryption is the authentication evidence: only the
+           holder of sk_js can produce a ciphertext under this AppKey. *)
+        let joinnonce = aes_dec(appkey, encJA) in
+        event ev_ed_auth_js(pk_js_recv, j_eui);
+        (* DevNonce n (the ED's own) is bound into the session key. A replayed
+           Join-accept carries an OLD JoinNonce but the ED's CURRENT n, so the
+           resulting NwkSKey matches no live server: replay => desync, not key
+           reuse. The freshness gap is still real (Q6). *)
+        let nwkskey   = sessionkey(appkey, joinnonce, n) in
         event ev_ed_key(appkey, pk(sk_ed), pk_js_recv);
-        out(pub, aes_enc(appkey,  s_appkey));
-        out(pub, aes_enc(nwkskey, s_nwkskey))
+        out(pub, senc(appkey,  s_appkey));
+        out(pub, senc(nwkskey, s_nwkskey))
     ).
 
 (* -------------------- Network Server (honest relay, A3) -------------------- *)
@@ -191,25 +250,26 @@ let NS_proc(d_eui: bitstring) =
     out(pub, (encJA, js_rr)).                                 (* deliver frame to ED *)
 
 (* -------------------- Join Server (steps 4-11) -------------------- *)
-(* js_rr is the JS's own authentic TLSA record, passed in as a private
-   parameter (the JS "knows" its own DNSSEC chain). It is emitted only here,
-   after ev_js_active, so the attacker cannot present it to an ED earlier. *)
+(* js_rr is the JS's own authentic TLSA record. It is given as a parameter
+   (the JS knows its own DNSSEC chain) AND is independently published by the
+   DNS oracle, so it is NOT secret. *)
 let JS_proc(sk_js: bitstring, j_eui: bitstring, pk_ta: bitstring,
             js_rr: bitstring) =
     in(nsjs, (j: bitstring, d: bitstring, n: bitstring, sg: bitstring));
-    out(dns, (tagED, d));
-    in(dns, ed_rr: bitstring);
+    out(dns, (tagED, d));                                     (* step 4 *)
+    in(dns, ed_rr: bitstring);                                (* step 5 *)
     let tlsa(nm_ed, pk_ed) = vds(ed_rr, pk_ta) in
     if nm_ed = d then (
-        let jreq(=j, =d, =n) = checksign(sg, pk_ed) in
+        let jreq(=j, =d, =n) = checksign(sg, pk_ed) in        (* step 6 *)
         event ev_js_auth_ed(pk_ed, d, n);
-        let appkey = first16(dh(sk_js, pk_ed)) in
+        let appkey = first16(dh(sk_js, pk_ed)) in             (* step 7 *)
         event ev_js_key(appkey, pk_ed, pk(sk_js));
         new joinnonce: bitstring;
-        let encJA = aes_enc(appkey, joinnonce) in
-        let nwkskey = sessionkey(appkey, joinnonce) in
+        let encJA = aes_enc(appkey, joinnonce) in             (* step 8 *)
+        let nwkskey = sessionkey(appkey, joinnonce, n) in     (* same DevNonce n *)
         event ev_js_active(pk(sk_js));
-        out(nsjs, (encJA, js_rr, nwkskey))  (* step 11: NwkSKey in clear *)
+        out(pub, senc(appkey, s_appkey));                  (* JS-side AppKey marker *)
+        out(nsjs, (encJA, js_rr, nwkskey))                    (* step 11: NwkSKey in clear *)
     ).
 
 (* -------------------- main -------------------- *)
@@ -220,18 +280,18 @@ process
     new d_eui: bitstring;
     new j_eui: bitstring;
     out(pub, pk(sk_ta)); out(pub, j_eui); out(pub, d_eui);
-    (* sk_ta is NOT revealed: honest trust anchor (A1). The JS's authentic
-       record is built here and handed to the JS as a private parameter. *)
+    out(pub, pk(sk_ed)); out(pub, pk(sk_js));   (* DANE public keys are public *)
+    (* sk_ta is NOT revealed: honest trust anchor (A1). *)
     let js_rr = ds(sk_ta, tlsa(j_eui, pk(sk_js))) in
     (
-        ! DNS_oracle(sk_ta, d_eui, pk(sk_ed))
+        ! DNS_oracle(sk_ta, d_eui, pk(sk_ed), j_eui, pk(sk_js))
       | ! ED_proc(sk_ed, d_eui, j_eui, pk(sk_ta))
       | ! NS_proc(d_eui)
       | ! JS_proc(sk_js, j_eui, pk(sk_ta), js_rr)
     )
 
 (* ==========================================================================
-   FORWARD-SECRECY EXPERIMENT (FS, Table I).
+   FORWARD-SECRECY EXPERIMENT (FS, Table II).
    Replace the parallel block above with the one below: it reveals the
    long-term keys AFTER the session in phase 1. ProVerif then reports Q1
    (attacker(s_appkey)) as REACHABLE, because the static AppKey is recomputed
@@ -240,7 +300,7 @@ process
 
    let js_rr = ds(sk_ta, tlsa(j_eui, pk(sk_js))) in
    (
-       ! DNS_oracle(sk_ta, d_eui, pk(sk_ed))
+       ! DNS_oracle(sk_ta, d_eui, pk(sk_ed), j_eui, pk(sk_js))
      | ! ED_proc(sk_ed, d_eui, j_eui, pk(sk_ta))
      | ! NS_proc(d_eui)
      | ! JS_proc(sk_js, j_eui, pk(sk_ta), js_rr)
